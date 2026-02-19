@@ -2,7 +2,6 @@
 
 #include <streamwindow.h>
 #include <streamsession.h>
-#include <avopenglwidget.h>
 #include <loginpindialog.h>
 #include <settings.h>
 
@@ -10,34 +9,34 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QAction>
+#include <QVBoxLayout>
 
 StreamWindow::StreamWindow(const StreamSessionConnectInfo &connect_info, QWidget *parent)
 	: QMainWindow(parent),
 	connect_info(connect_info)
 {
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowTitle(qApp->applicationName() + " | Stream");
+	setWindowTitle(qApp->applicationName() + " | Controller (No Audio/Video)");
 		
 	session = nullptr;
-	av_widget = nullptr;
 
 	try
 	{
+		// Mantemos a opção de tela cheia caso queira capturar input exclusivo
 		if(connect_info.fullscreen)
 			showFullScreen();
 		Init();
 	}
 	catch(const Exception &e)
 	{
-		QMessageBox::critical(this, tr("Stream failed"), tr("Failed to initialize Stream Session: %1").arg(e.what()));
+		QMessageBox::critical(this, tr("Init failed"), tr("Failed to initialize Session: %1").arg(e.what()));
 		close();
 	}
 }
 
 StreamWindow::~StreamWindow()
 {
-	// make sure av_widget is always deleted before the session
-	delete av_widget;
+	// Removido delete av_widget pois ele não existe mais
 }
 
 void StreamWindow::Init()
@@ -47,60 +46,52 @@ void StreamWindow::Init()
 	connect(session, &StreamSession::SessionQuit, this, &StreamWindow::SessionQuit);
 	connect(session, &StreamSession::LoginPINRequested, this, &StreamWindow::LoginPINRequested);
 
-	if(session->GetFfmpegDecoder())
-	{
-		av_widget = new AVOpenGLWidget(session, this);
-		setCentralWidget(av_widget);
-	}
-	else
-	{
-		QWidget *bg_widget = new QWidget(this);
-		bg_widget->setStyleSheet("background-color: black;");
-		setCentralWidget(bg_widget);
-	}
+	// Criamos um widget simples de fundo apenas para indicar o status
+	QWidget *central_widget = new QWidget(this);
+	central_widget->setStyleSheet("background-color: #222;");
+	
+	auto layout = new QVBoxLayout(central_widget);
+	auto label = new QLabel(tr("Remote Session Active (Audio/Video Disabled)"), central_widget);
+	label->setStyleSheet("color: white; font-weight: bold;");
+	label->setAlignment(Qt::AlignCenter);
+	layout->addWidget(label);
+	
+	setCentralWidget(central_widget);
 
+	// Captura de teclado permanece ativa para enviar comandos ao console
 	grabKeyboard();
 
 	session->Start();
 
-	auto fullscreen_action = new QAction(tr("Fullscreen"), this);
-	fullscreen_action->setShortcut(Qt::Key_F11);
-	addAction(fullscreen_action);
-	connect(fullscreen_action, &QAction::triggered, this, &StreamWindow::ToggleFullscreen);
+	// Atalho para fechar ou alternar tela
+	auto quit_action = new QAction(tr("Quit"), this);
+	quit_action->setShortcut(Qt::Key_Escape);
+	addAction(quit_action);
+	connect(quit_action, &QAction::triggered, this, &StreamWindow::close);
 
-	resize(connect_info.video_profile.width, connect_info.video_profile.height);
+	resize(400, 200); // Tamanho reduzido, já que não há vídeo
 	show();
 }
 
+// Os eventos de entrada são mantidos para que você ainda possa controlar o console
 void StreamWindow::keyPressEvent(QKeyEvent *event)
 {
-	if(session)
-		session->HandleKeyboardEvent(event);
+	if(session) session->HandleKeyboardEvent(event);
 }
 
 void StreamWindow::keyReleaseEvent(QKeyEvent *event)
 {
-	if(session)
-		session->HandleKeyboardEvent(event);
+	if(session) session->HandleKeyboardEvent(event);
 }
 
 void StreamWindow::mousePressEvent(QMouseEvent *event)
 {
-	if(session)
-		session->HandleMouseEvent(event);
+	if(session) session->HandleMouseEvent(event);
 }
 
 void StreamWindow::mouseReleaseEvent(QMouseEvent *event)
 {
-	if(session)
-		session->HandleMouseEvent(event);
-}
-
-void StreamWindow::mouseDoubleClickEvent(QMouseEvent *event)
-{
-	ToggleFullscreen();
-
-	QMainWindow::mouseDoubleClickEvent(event);
+	if(session) session->HandleMouseEvent(event);
 }
 
 void StreamWindow::closeEvent(QCloseEvent *event)
@@ -109,32 +100,8 @@ void StreamWindow::closeEvent(QCloseEvent *event)
 	{
 		if(session->IsConnected())
 		{
-			bool sleep = false;
-			switch(connect_info.settings->GetDisconnectAction())
-			{
-				case DisconnectAction::Ask: {
-					auto res = QMessageBox::question(this, tr("Disconnect Session"), tr("Do you want the Console to go into sleep mode?"),
-							QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
-					switch(res)
-					{
-						case QMessageBox::Yes:
-							sleep = true;
-							break;
-						case QMessageBox::Cancel:
-							event->ignore();
-							return;
-						default:
-							break;
-					}
-					break;
-				}
-				case DisconnectAction::AlwaysSleep:
-					sleep = true;
-					break;
-				default:
-					break;
-			}
-			if(sleep)
+			// Lógica de Sleep ao desconectar preservada
+			if(connect_info.settings->GetDisconnectAction() == DisconnectAction::AlwaysSleep)
 				session->GoToBed();
 		}
 		session->Stop();
@@ -145,10 +112,7 @@ void StreamWindow::SessionQuit(ChiakiQuitReason reason, const QString &reason_st
 {
 	if(reason != CHIAKI_QUIT_REASON_STOPPED)
 	{
-		QString m = tr("Chiaki Session has quit") + ":\n" + chiaki_quit_reason_string(reason);
-		if(!reason_str.isEmpty())
-			m += "\n" + tr("Reason") + ": \"" + reason_str + "\"";
-		QMessageBox::critical(this, tr("Session has quit"), m);
+		QMessageBox::warning(this, tr("Disconnected"), tr("Session quit unexpectedly."));
 	}
 	close();
 }
@@ -159,10 +123,7 @@ void StreamWindow::LoginPINRequested(bool incorrect)
 	dialog->setAttribute(Qt::WA_DeleteOnClose);
 	connect(dialog, &QDialog::finished, this, [this, dialog](int result) {
 		grabKeyboard();
-
-		if(!session)
-			return;
-
+		if(!session) return;
 		if(result == QDialog::Accepted)
 			session->SetLoginPIN(dialog->GetPIN());
 		else
@@ -172,45 +133,4 @@ void StreamWindow::LoginPINRequested(bool incorrect)
 	dialog->show();
 }
 
-void StreamWindow::ToggleFullscreen()
-{
-	if(isFullScreen())
-		showNormal();
-	else
-	{
-		showFullScreen();
-		if(av_widget)
-			av_widget->HideMouse();
-	}
-}
-
-void StreamWindow::resizeEvent(QResizeEvent *event)
-{
-	UpdateVideoTransform();
-	QMainWindow::resizeEvent(event);
-}
-
-void StreamWindow::moveEvent(QMoveEvent *event)
-{
-	UpdateVideoTransform();
-	QMainWindow::moveEvent(event);
-}
-
-void StreamWindow::changeEvent(QEvent *event)
-{
-	if(event->type() == QEvent::ActivationChange)
-		UpdateVideoTransform();
-	QMainWindow::changeEvent(event);
-}
-
-void StreamWindow::UpdateVideoTransform()
-{
-#if CHIAKI_LIB_ENABLE_PI_DECODER
-	ChiakiPiDecoder *pi_decoder = session->GetPiDecoder();
-	if(pi_decoder)
-	{
-		QRect r = geometry();
-		chiaki_pi_decoder_set_params(pi_decoder, r.x(), r.y(), r.width(), r.height(), isActiveWindow());
-	}
-#endif
-}
+// Removidas funções UpdateVideoTransform e referências ao PiDecoder/OpenGL
