@@ -1,4 +1,4 @@
-name: Build Chiaki (No AV Version)
+name: Build Chiaki Windows (No AV + Recoil)
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     steps:
     - name: Checkout repository
@@ -16,49 +16,32 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          cmake \
-          qtbase5-dev \
-          qtchooser \
-          qt5-qmake \
-          qtbase5-dev-tools \
-          libqt5svg5-dev \
-          qtmultimedia5-dev \
-          libqt5multimedia5-plugins \
-          libavcodec-dev \
-          libavutil-dev \
-          libavformat-dev \
-          libswscale-dev \
-          libssl-dev \
-          libsdl2-dev \
-          libopus-dev \
-          libevdev-dev \
-          libudev-dev \
-          protobuf-compiler \
-          python3-pip \
-          python3-setuptools
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'latest'
 
-    - name: Fix Protobuf Version for Nanopb
+    - name: Install Dependencies via vcpkg
       run: |
-        # Forçamos a versão 3.20.x do protobuf no python para evitar o erro de 'MakeClass'
-        pip3 install "protobuf<4.0.0" --break-system-packages
+        vcpkg install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows
 
     - name: Configure CMake
       run: |
         mkdir build
         cd build
-        cmake .. -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -Wno-dev
+        cmake .. `
+          -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+          -DCHIAKI_ENABLE_CLI=ON `
+          -DCHIAKI_ENABLE_GUI=ON `
+          -Wno-dev
 
     - name: Build
       run: |
         cd build
-        make -j$(nproc)
+        cmake --build . --config Release
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: chiaki-linux-build
-        path: build/gui/chiaki
+        name: chiaki-windows-x64
+        path: build/gui/Release/chiaki.exe
