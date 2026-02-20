@@ -1,9 +1,31 @@
+name: Build Chiaki Windows (No AV + Recoil)
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies via vcpkg
+      run: |
+        cd C:\vcpkg
+        .\vcpkg.exe install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows
+
     - name: Configure CMake
       run: |
         mkdir build
         cd build
-        # Adicionamos flags para ignorar avisos de segurança do Windows (_CRT_SECURE_NO_WARNINGS)
-        # e desativar o tratamento de avisos como erros (/WX-)
+        # As flags abaixo silenciam os avisos de segurança que estão travando o build
         cmake .. `
           -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
           -DVCPKG_TARGET_TRIPLET=x64-windows `
@@ -13,3 +35,23 @@
           -DCMAKE_CXX_FLAGS="/DWIN32 /D_WINDOWS /W3 /GR /EHsc /D_CRT_SECURE_NO_WARNINGS /WX-" `
           -DCMAKE_C_FLAGS="/DWIN32 /D_WINDOWS /W3 /D_CRT_SECURE_NO_WARNINGS /WX-" `
           -Wno-dev
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release --parallel
+
+    - name: Prepare Deployment
+      run: |
+        mkdir dist
+        if (Test-Path "build\gui\Release\chiaki.exe") {
+            copy build\gui\Release\chiaki.exe dist\
+        }
+        copy C:\vcpkg\installed\x64-windows\bin\*.dll dist\
+        echo "Pacote pronto"
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chiaki-windows-x64-final
+        path: dist/
