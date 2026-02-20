@@ -26,6 +26,8 @@ jobs:
           qt5-qmake \
           qtbase5-dev-tools \
           libqt5svg5-dev \
+          qtmultimedia5-dev \
+          libqt5multimedia5-plugins \
           libavcodec-dev \
           libavutil-dev \
           libavformat-dev \
@@ -33,6 +35,8 @@ jobs:
           libssl-dev \
           libsdl2-dev \
           libopus-dev \
+          libevdev-dev \
+          libudev-dev \
           protobuf-compiler \
           python3-pip \
           python3-setuptools
@@ -44,7 +48,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        # -Wno-dev ignora avisos de depreciação
+        # Definimos explicitamente para ignorar o que não queremos se necessário
         cmake .. -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -Wno-dev
 
     - name: Build
