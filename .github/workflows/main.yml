@@ -10,7 +10,7 @@ jobs:
         with:
           submodules: recursive
 
-      # 1. SETUP PYTHON (Correção do erro de 'google' e 'distutils')
+      # 1. SETUP PYTHON (Resolve o erro do Protobuf/Takion)
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -21,47 +21,43 @@ jobs:
           python -m pip install --upgrade pip
           pip install protobuf==3.20.* setuptools
 
-      # 2. CACHE INTELIGENTE
+      # 2. CACHE BINÁRIO (A chave para não demorar horas na próxima vez)
       - name: Cache vcpkg
         uses: actions/cache@v3
         with:
           path: |
-            C:/vcpkg/installed
             C:/Users/runneradmin/AppData/Local/vcpkg/archives
-          key: vcpkg-win-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: vcpkg-win-
+          key: vcpkg-bin-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: vcpkg-bin-
 
-      # 3. INSTALAÇÃO (Usando binários se possível para acelerar)
+      # 3. INSTALAÇÃO (Focada apenas em Release para economizar 50% do tempo)
       - name: Install Deps
         run: |
-          vcpkg install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows
+          vcpkg install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows-release
 
-      # 4. CONFIGURE & BUILD (Com flags de velocidade)
+      # 4. CONFIGURE & BUILD (Usando Ninja e Multiprocessamento)
       - name: Configure & Build
         run: |
           cmake -B build -S . `
+                   -G "Ninja" `
                    -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-                   -DVCPKG_TARGET_TRIPLET=x64-windows `
+                   -DVCPKG_TARGET_TRIPLET=x64-windows-release `
                    -DCMAKE_BUILD_TYPE=Release `
                    -D_CRT_SECURE_NO_WARNINGS=ON `
                    -DCHIAKI_ENABLE_GUI=ON
           
-          # Compila usando todos os núcleos disponíveis
           cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
 
-      # 5. EXPORT (Coleta apenas o necessário para o app abrir)
+      # 5. EXPORT (Garante que o exe e as DLLs estejam no mesmo lugar)
       - name: Export
         run: |
           mkdir dist
-          copy build\gui\Release\chiaki.exe dist\
-          # Copia apenas as DLLs essenciais para não gerar um arquivo de 2GB
-          foreach ($dll in Get-ChildItem "C:\vcpkg\installed\x64-windows\bin\*.dll") {
-              copy $dll.FullName dist\
-          }
+          copy build\gui\chiaki.exe dist\
+          # Copia as DLLs necessárias do triplet release
+          copy C:\vcpkg\installed\x64-windows-release\bin\*.dll dist\
         
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Windows-Fast
+          name: Chiaki-Windows-Final
           path: dist/
-          
