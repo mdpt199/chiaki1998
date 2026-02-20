@@ -10,31 +10,49 @@ jobs:
         with:
           submodules: recursive
 
-      # 1. SETUP PYTHON (Resolve o erro do Protobuf/Takion)
+      # 1. SETUP PYTHON (Para não dar erro no Takion/Protobuf)
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
-      - name: Install Python Deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install protobuf==3.20.* setuptools
+      - run: pip install protobuf==3.20.* setuptools
 
-      # 2. CACHE BINÁRIO (A chave para não demorar horas na próxima vez)
+      # 2. CACHE (Essencial para não compilar tudo de novo no próximo push)
       - name: Cache vcpkg
         uses: actions/cache@v3
         with:
           path: |
             C:/Users/runneradmin/AppData/Local/vcpkg/archives
-          key: vcpkg-bin-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: vcpkg-bin-
+          key: vcpkg-release-${{ hashFiles('**/CMakeLists.txt') }}
 
-      # 3. INSTALAÇÃO (Focada apenas em Release para economizar 50% do tempo)
+      # 3. INSTALAR APENAS RELEASE (Corta 50% do tempo aqui)
       - name: Install Deps
         run: |
           vcpkg install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows-release
 
+      # 4. COMPILAR CHIAKI (Usando Ninja que é mais rápido)
+      - name: Configure & Build
+        run: |
+          cmake -B build -G "Ninja" `
+            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-release `
+            -DCMAKE_BUILD_TYPE=Release `
+            -D_CRT_SECURE_NO_WARNINGS=ON `
+            -DCHIAKI_ENABLE_GUI=ON
+          cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
+
+      # 5. COLETAR TUDO (Exe + DLLs)
+      - name: Export
+        run: |
+          mkdir dist
+          copy build\gui\chiaki.exe dist\
+          copy C:\vcpkg\installed\x64-windows-release\bin\*.dll dist\
+        
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chiaki-Windows-Final
+          path: dist/
+          
       # 4. CONFIGURE & BUILD (Usando Ninja e Multiprocessamento)
       - name: Configure & Build
         run: |
