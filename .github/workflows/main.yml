@@ -34,13 +34,17 @@ jobs:
           libsdl2-dev \
           libopus-dev \
           protobuf-compiler \
-          python3-nanopb
+          python3-pip \
+          python3-setuptools
+
+    - name: Install Nanopb via Pip
+      run: pip3 install nanopb --break-system-packages
 
     - name: Configure CMake
       run: |
         mkdir build
         cd build
-        # -Wno-dev esconde os avisos de depreciação do CMake que apareceram no seu log
+        # -Wno-dev ignora avisos de depreciação
         cmake .. -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -Wno-dev
 
     - name: Build
