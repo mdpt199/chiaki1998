@@ -1,4 +1,4 @@
-name: Construir Windows
+name: Build Chiaki Windows
 
 on:
   push:
@@ -7,48 +7,68 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v4
       with:
         submodules: recursive
 
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # Versão estável com distutils integrado
+        python-version: '3.11'
 
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install protobuf==3.20.* setuptools
 
-    - name: Setup vcpkg
-      uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'latest'
+    - name: Setup MSVC & Ninja
+      uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Install Dependencies (vcpkg)
+    - name: Install Ninja
+      run: choco install ninja
+
+    - name: vcpkg Cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          $VCPKG_INSTALLATION_ROOT/installed
+          ~/.cache/vcpkg
+        key: ${{ runner.os }}-vcpkg-cache-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-cache-
+
+    - name: Install Dependencies via vcpkg
       run: |
         vcpkg install sdl2 opus openssl ffmpeg --triplet x64-windows
 
     - name: Configure CMake
-      # O uso do Ninja e compilação paralela acelera o processo
       run: |
         cmake -S . -B build `
           -G "Ninja" `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-          -D_CRT_SECURE_NO_WARNINGS=ON
+          -D_CRT_SECURE_NO_WARNINGS=ON `
+          -DCHIAKI_USE_SYSTEM_NANOPB=OFF
 
-    - name: Build
+    - name: Build Chiaki
       run: |
-        cmake --build build --config Release --parallel 4
+        cmake --build build --config Release --parallel (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 
-    - name: Upload Artifact
+    - name: Prepare Artifacts
+      run: |
+        mkdir dist
+        copy build/gui/chiaki.exe dist/
+        # Copia as DLLs necessárias para o exe funcionar fora do build
+        copy $env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll dist/
+
+    - name: Upload Build
       uses: actions/upload-artifact@v4
       with:
-        name: chiaki-windows
-        path: build/gui/chiaki.exe
+        name: chiaki-windows-release
+        path: dist/
+        
