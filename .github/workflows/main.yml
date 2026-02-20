@@ -32,13 +32,16 @@ jobs:
           libswscale-dev \
           libssl-dev \
           libsdl2-dev \
-          libopus-dev
+          libopus-dev \
+          protobuf-compiler \
+          python3-nanopb
 
     - name: Configure CMake
       run: |
         mkdir build
         cd build
-        cmake .. -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON
+        # -Wno-dev esconde os avisos de depreciação do CMake que apareceram no seu log
+        cmake .. -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -Wno-dev
 
     - name: Build
       run: |
