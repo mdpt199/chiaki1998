@@ -10,38 +10,42 @@ jobs:
         with:
           submodules: recursive
 
-      # 1. SETUP PYTHON (Para não dar erro no Takion/Protobuf)
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install protobuf==3.20.* setuptools
+          # Isso garante que o Python 3.11 seja o padrão no PATH
+          update-environment-variables: true 
+      
+      - name: Install Python Deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install protobuf==3.20.* setuptools
 
-      # 2. CACHE (Essencial para não compilar tudo de novo no próximo push)
       - name: Cache vcpkg
         uses: actions/cache@v3
         with:
           path: |
             C:/Users/runneradmin/AppData/Local/vcpkg/archives
-          key: vcpkg-release-${{ hashFiles('**/CMakeLists.txt') }}
+          key: vcpkg-release-v2-${{ hashFiles('**/CMakeLists.txt') }}
 
-      # 3. INSTALAR APENAS RELEASE (Corta 50% do tempo aqui)
       - name: Install Deps
         run: |
           vcpkg install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows-release
 
-      # 4. COMPILAR CHIAKI (Usando Ninja que é mais rápido)
       - name: Configure & Build
         run: |
+          # Adicionamos -DCMAKE_POLICY_DEFAULT_CMP0057=NEW para corrigir o erro do FFmpeg
           cmake -B build -G "Ninja" `
             -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-release `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_POLICY_DEFAULT_CMP0057=NEW `
             -D_CRT_SECURE_NO_WARNINGS=ON `
             -DCHIAKI_ENABLE_GUI=ON
+          
           cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
 
-      # 5. COLETAR TUDO (Exe + DLLs)
       - name: Export
         run: |
           mkdir dist
@@ -49,33 +53,6 @@ jobs:
           copy C:\vcpkg\installed\x64-windows-release\bin\*.dll dist\
         
       - uses: actions/upload-artifact@v4
-        with:
-          name: Chiaki-Windows-Final
-          path: dist/
-          
-      # 4. CONFIGURE & BUILD (Usando Ninja e Multiprocessamento)
-      - name: Configure & Build
-        run: |
-          cmake -B build -S . `
-                   -G "Ninja" `
-                   -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-                   -DVCPKG_TARGET_TRIPLET=x64-windows-release `
-                   -DCMAKE_BUILD_TYPE=Release `
-                   -D_CRT_SECURE_NO_WARNINGS=ON `
-                   -DCHIAKI_ENABLE_GUI=ON
-          
-          cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
-
-      # 5. EXPORT (Garante que o exe e as DLLs estejam no mesmo lugar)
-      - name: Export
-        run: |
-          mkdir dist
-          copy build\gui\chiaki.exe dist\
-          # Copia as DLLs necessárias do triplet release
-          copy C:\vcpkg\installed\x64-windows-release\bin\*.dll dist\
-        
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
         with:
           name: Chiaki-Windows-Final
           path: dist/
