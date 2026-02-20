@@ -1,47 +1,54 @@
-name: Build Chiaki Windows Fast
+name: Construir Windows
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      # CACHE: É isso que impede de demorar 2 horas toda vez
-      - name: Cache vcpkg
-        uses: actions/cache@v3
-        with:
-          path: |
-            C:/vcpkg/installed
-            D:/a/chiaki1998/chiaki1998/vcpkg/installed
-          key: vcpkg-win-${{ hashFiles('**/CMakeLists.txt') }}
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # Versão estável com distutils integrado
 
-      - name: Install Deps
-        run: |
-          cd C:\vcpkg
-          .\vcpkg.exe install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install protobuf==3.20.* setuptools
 
-      - name: Configure & Build
-        run: |
-          mkdir build; cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-                   -DVCPKG_TARGET_TRIPLET=x64-windows `
-                   -DCMAKE_POLICY_DEFAULT_CMP0057=NEW `
-                   -DCMAKE_CXX_FLAGS="/D_CRT_SECURE_NO_WARNINGS /WX-" `
-                   -DCHIAKI_ENABLE_GUI=ON
-          cmake --build . --config Release --parallel
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'latest'
 
-      - name: Export
-        run: |
-          mkdir dist
-          copy build\gui\Release\chiaki.exe dist\
-          copy C:\vcpkg\installed\x64-windows\bin\*.dll dist\
-        
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Chiaki-Recoil-Windows
-          path: dist/
-          
+    - name: Install Dependencies (vcpkg)
+      run: |
+        vcpkg install sdl2 opus openssl ffmpeg --triplet x64-windows
+
+    - name: Configure CMake
+      # O uso do Ninja e compilação paralela acelera o processo
+      run: |
+        cmake -S . -B build `
+          -G "Ninja" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+          -D_CRT_SECURE_NO_WARNINGS=ON
+
+    - name: Build
+      run: |
+        cmake --build build --config Release --parallel 4
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chiaki-windows
+        path: build/gui/chiaki.exe
