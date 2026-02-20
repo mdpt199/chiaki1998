@@ -16,7 +16,7 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install Dependencies
+    - name: Install System Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -41,14 +41,15 @@ jobs:
           python3-pip \
           python3-setuptools
 
-    - name: Install Nanopb via Pip
-      run: pip3 install nanopb --break-system-packages
+    - name: Fix Protobuf Version for Nanopb
+      run: |
+        # Forçamos a versão 3.20.x do protobuf no python para evitar o erro de 'MakeClass'
+        pip3 install "protobuf<4.0.0" --break-system-packages
 
     - name: Configure CMake
       run: |
         mkdir build
         cd build
-        # Definimos explicitamente para ignorar o que não queremos se necessário
         cmake .. -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -Wno-dev
 
     - name: Build
