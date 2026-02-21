@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (Final Fix)
+name: Build Chiaki Ghost Zen (Deep Clean)
 
 on:
   push:
@@ -35,15 +35,20 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Nuclear Patch (Deletar Requisitos de Protobuf)
+      - name: Deep Patch (Kill Protobuf for Good)
         run: |
-          # 1. Comenta a linha que obriga a achar o Python (Linha 71)
+          # 1. Comenta a linha do Python e do Nanopb no CMake principal
           sed -i 's/find_package(PythonInterp 3 REQUIRED)/# find_package(PythonInterp 3 REQUIRED)/g' CMakeLists.txt
-          
-          # 2. Comenta a entrada na pasta third-party que causa o erro do protoc
           sed -i 's/add_subdirectory(third-party)/# add_subdirectory(third-party)/g' CMakeLists.txt
           
-          # 3. Força a versão do CMake em todos os arquivos para evitar erro < 3.5
+          # 2. MATA O PROTOBUF DENTRO DA LIB (Resolve o erro atual)
+          # No arquivo lib/CMakeLists.txt, removemos a subpasta protobuf
+          if [ -f lib/CMakeLists.txt ]; then
+            sed -i 's/add_subdirectory(protobuf)/# add_subdirectory(protobuf)/g' lib/CMakeLists.txt
+            sed -i 's/chiaki-protobuf//g' lib/CMakeLists.txt
+          fi
+
+          # 3. Força a versão do CMake em todos os arquivos
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           
           # 4. Correções de sintaxe MinGW
@@ -55,7 +60,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Agora o CMake vai ignorar o que comentamos e focar no resto
+          # Desativamos tudo que possa chamar o Protobuf por dependência
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
@@ -80,5 +85,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Ghost-Zen-Edition
+          name: Chiaki-Ghost-Zen-Final
           path: build/release_package/
