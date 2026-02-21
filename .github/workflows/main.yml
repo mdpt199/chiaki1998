@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (Zero Protobuf)
+name: Build Chiaki Ghost Zen (Final Fix)
 
 on:
   push:
@@ -35,23 +35,12 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Nuclear Patch (Deletar Protobuf do CMake)
+      - name: Patch Code for MinGW
         run: |
-          # 1. Remove a busca obrigatória por Python (que o Nanopb exige)
-          sed -i '/find_package(PythonInterp 3 REQUIRED)/d' CMakeLists.txt
-          
-          # 2. Remove a menção ao Nanopb no sistema
-          sed -i '/tri_option(CHIAKI_USE_SYSTEM_NANOPB/d' CMakeLists.txt
-          sed -i '/if(CHIAKI_USE_SYSTEM_NANOPB)/,/endif()/d' CMakeLists.txt
-          
-          # 3. Impede o CMake de entrar na pasta third-party/nanopb
-          # Deletamos a pasta fisicamente para não ter erro
-          rm -rf third-party/nanopb
-          
-          # 4. Ajusta a versão do CMake para evitar o erro de compatibilidade
+          # 1. Resolve o erro de versão do CMake em todos os arquivos
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
-
-          # 5. Correções de rede para MinGW
+          
+          # 2. Correções de sintaxe essenciais para MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -60,11 +49,14 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Desativamos o que depende de Nanopb (Tests e CLI costumam usar)
+          # Em vez de deletar linhas, desativamos as opções que chamam o Protobuf
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
-                -DCHIAKI_USE_SYSTEM_NANOPB=OFF ..
+                -DCHIAKI_USE_SYSTEM_NANOPB=OFF \
+                -DCHIAKI_USE_SYSTEM_JERASURE=OFF \
+                -DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=ON \
+                -DCMAKE_DISABLE_FIND_PACKAGE_PythonLibs=ON ..
 
       - name: Build
         run: |
