@@ -35,25 +35,26 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Nuclear Linker Patch
+      - name: Force Disable Protobuf
         run: |
-          # 1. Comenta as entradas do Nanopb/Protobuf no CMake principal
-          sed -i 's/find_package(PythonInterp 3 REQUIRED)/# find_package(PythonInterp 3 REQUIRED)/g' CMakeLists.txt
-          sed -i 's/add_subdirectory(third-party)/# add_subdirectory(third-party)/g' CMakeLists.txt
+          # 1. Esvazia o arquivo que está causando o erro atual
+          echo "" > lib/protobuf/CMakeLists.txt
           
-          # 2. LIMPEZA TOTAL NA LIB (Resolve o erro atual)
+          # 2. Remove as menções ao Protobuf e Nanopb na biblioteca principal
           if [ -f lib/CMakeLists.txt ]; then
-            # Comenta a linha 109 (add_dependencies chiaki-pb)
-            sed -i 's/add_dependencies(chiaki-lib chiaki-pb)/# add_dependencies(chiaki-lib chiaki-pb)/g' lib/CMakeLists.txt
-            # Remove o link para Nanopb (Linha 139)
-            sed -i 's/Nanopb::nanopb//g' lib/CMakeLists.txt
-            # Remove menções a chiaki-pb
+            sed -i 's/add_subdirectory(protobuf)/# add_subdirectory(protobuf)/g' lib/CMakeLists.txt
+            sed -i 's/add_dependencies(chiaki-lib chiaki-pb)/#/g' lib/CMakeLists.txt
             sed -i 's/chiaki-pb//g' lib/CMakeLists.txt
-            # Remove a linha de include vazia (Linha 94)
+            sed -i 's/Nanopb::nanopb//g' lib/CMakeLists.txt
+            # Remove a linha 94 que costuma dar erro de string vazia
             sed -i '94s/^/#/' lib/CMakeLists.txt
           fi
 
-          # 3. Ajustes de versão e MinGW
+          # 3. Comenta o Nanopb e Python no CMakeLists.txt da raiz
+          sed -i 's/find_package(PythonInterp/#/g' CMakeLists.txt
+          sed -i 's/add_subdirectory(third-party)/#/g' CMakeLists.txt
+
+          # 4. Ajustes de compatibilidade do CMake e correções MinGW
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
@@ -63,6 +64,7 @@ jobs:
         run: |
           mkdir build
           cd build
+          # Desativa tudo que depende de Protobuf para evitar erros de linkagem
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
@@ -87,5 +89,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-NoProto-Final
+          name: Chiaki-Ghost-Zen-Edition
           path: build/release_package/
