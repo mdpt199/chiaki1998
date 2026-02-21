@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (Deep Clean)
+name: Build Chiaki Ghost Zen (Final Deep Patch)
 
 on:
   push:
@@ -35,20 +35,23 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Deep Patch (Kill Protobuf for Good)
+      - name: Deep Patch (Fix Empty String Error)
         run: |
-          # 1. Comenta a linha do Python e do Nanopb no CMake principal
+          # 1. Limpeza do CMake principal
           sed -i 's/find_package(PythonInterp 3 REQUIRED)/# find_package(PythonInterp 3 REQUIRED)/g' CMakeLists.txt
           sed -i 's/add_subdirectory(third-party)/# add_subdirectory(third-party)/g' CMakeLists.txt
           
-          # 2. MATA O PROTOBUF DENTRO DA LIB (Resolve o erro atual)
-          # No arquivo lib/CMakeLists.txt, removemos a subpasta protobuf
+          # 2. Corrigir lib/CMakeLists.txt (Resolve o erro da linha 94)
           if [ -f lib/CMakeLists.txt ]; then
+            # Comenta a subpasta protobuf
             sed -i 's/add_subdirectory(protobuf)/# add_subdirectory(protobuf)/g' lib/CMakeLists.txt
+            # Remove referências de link
             sed -i 's/chiaki-protobuf//g' lib/CMakeLists.txt
+            # COMENTA A LINHA QUE CAUSA O ERRO DE STRING VAZIA
+            sed -i '94s/^/#/' lib/CMakeLists.txt
           fi
 
-          # 3. Força a versão do CMake em todos os arquivos
+          # 3. Forçar versão do CMake para compatibilidade
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           
           # 4. Correções de sintaxe MinGW
@@ -60,7 +63,6 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Desativamos tudo que possa chamar o Protobuf por dependência
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
