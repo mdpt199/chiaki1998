@@ -41,9 +41,10 @@ jobs:
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
 
           # 2. REMOVE COMPLETAMENTE O NANOPB/PROTOBUF DO BUILD
-          # Remove a linha que adiciona a subpasta do nanopb
+          # Remove a linha que chama a subpasta do nanopb para evitar o erro de 'protoc'
           sed -i '/add_subdirectory(third-party\/nanopb)/d' CMakeLists.txt
-          # Remove a dependência de link do nanopb
+          
+          # Remove as dependências de link que pedem o nanopb/protobuf
           sed -i 's/protobuf-nanopb-static//g' CMakeLists.txt
           sed -i 's/nanopb//g' CMakeLists.txt
           
@@ -56,7 +57,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Forçamos o CMake a ignorar os testes e ferramentas que pedem protobuf
+          # Forçamos o CMake a ignorar os componentes que pedem o protobuf
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                 -DCHIAKI_ENABLE_TESTS=OFF \
@@ -69,7 +70,6 @@ jobs:
 
       - name: Prepare Package
         run: |
-          # Configura o ambiente para o deploy das DLLs
           ln -s /mingw64/bin/qmake-qt5.exe /mingw64/bin/qmake.exe || true
           export PATH="/mingw64/bin:$PATH"
           
@@ -77,10 +77,10 @@ jobs:
           mkdir release_package
           cp gui/chiaki.exe release_package/
           
-          # Deploy das dependências do Qt (Modo Ghost)
+          # Deploy automático das DLLs do Qt (Modo Ghost)
           /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime release_package/chiaki.exe || true
           
-          # Cópia MASSIVA de DLLs para garantir que rode em qualquer Windows
+          # Garante que todas as DLLs necessárias estejam presentes
           cp /mingw64/bin/*.dll release_package/ || true
 
       - name: Upload Artifact
