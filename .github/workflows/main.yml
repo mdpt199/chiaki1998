@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (No Protobuf Edition)
+name: Build Chiaki Ghost Zen (Zero Protobuf)
 
 on:
   push:
@@ -35,20 +35,23 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Kill Protobuf & Patch Code
+      - name: Nuclear Patch (Deletar Protobuf do CMake)
         run: |
-          # 1. Resolve o erro de versão mínima do CMake
+          # 1. Remove a busca obrigatória por Python (que o Nanopb exige)
+          sed -i '/find_package(PythonInterp 3 REQUIRED)/d' CMakeLists.txt
+          
+          # 2. Remove a menção ao Nanopb no sistema
+          sed -i '/tri_option(CHIAKI_USE_SYSTEM_NANOPB/d' CMakeLists.txt
+          sed -i '/if(CHIAKI_USE_SYSTEM_NANOPB)/,/endif()/d' CMakeLists.txt
+          
+          # 3. Impede o CMake de entrar na pasta third-party/nanopb
+          # Deletamos a pasta fisicamente para não ter erro
+          rm -rf third-party/nanopb
+          
+          # 4. Ajusta a versão do CMake para evitar o erro de compatibilidade
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
 
-          # 2. REMOVE COMPLETAMENTE O NANOPB/PROTOBUF DO BUILD
-          # Remove a linha que chama a subpasta do nanopb para evitar o erro de 'protoc'
-          sed -i '/add_subdirectory(third-party\/nanopb)/d' CMakeLists.txt
-          
-          # Remove as dependências de link que pedem o nanopb/protobuf
-          sed -i 's/protobuf-nanopb-static//g' CMakeLists.txt
-          sed -i 's/nanopb//g' CMakeLists.txt
-          
-          # 3. Correções de sintaxe para o MinGW
+          # 5. Correções de rede para MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -57,11 +60,11 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Forçamos o CMake a ignorar os componentes que pedem o protobuf
+          # Desativamos o que depende de Nanopb (Tests e CLI costumam usar)
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                 -DCHIAKI_ENABLE_TESTS=OFF \
-                -DCHIAKI_ENABLE_CLI=OFF ..
+                -DCHIAKI_ENABLE_CLI=OFF \
+                -DCHIAKI_USE_SYSTEM_NANOPB=OFF ..
 
       - name: Build
         run: |
@@ -72,19 +75,14 @@ jobs:
         run: |
           ln -s /mingw64/bin/qmake-qt5.exe /mingw64/bin/qmake.exe || true
           export PATH="/mingw64/bin:$PATH"
-          
           cd build
           mkdir release_package
           cp gui/chiaki.exe release_package/
-          
-          # Deploy automático das DLLs do Qt (Modo Ghost)
           /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime release_package/chiaki.exe || true
-          
-          # Garante que todas as DLLs necessárias estejam presentes
           cp /mingw64/bin/*.dll release_package/ || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Ghost-Zen-NoProto
+          name: Chiaki-Ghost-Zen-Edition
           path: build/release_package/
