@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (Code Patch Fix)
+name: Build Chiaki Ghost Zen (Source Patch Fix)
 
 on:
   push:
@@ -35,20 +35,21 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Nuclear Patch (Kill Proto from Source)
+      - name: Nuclear Source Patch (Deletar Referências ao Protobuf)
         run: |
-          # 1. Anular os arquivos de CMake do Protobuf/Nanopb
+          # 1. Anular arquivos de CMake do Nanopb/Protobuf
           echo "" > third-party/nanopb/CMakeLists.txt
           echo "" > lib/protobuf/CMakeLists.txt
           
-          # 2. COMENTAR INCLUDES NO CÓDIGO FONTE (Resolve o erro fatal atual)
-          # Remove includes de takion.pb.h e pb_encode.h
-          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <takion.pb.h>/\/\/ #include <takion.pb.h>/g'
-          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <pb_encode.h>/\/\/ #include <pb_encode.h>/g'
-          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <pb_decode.h>/\/\/ #include <pb_decode.h>/g'
-          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include "pb_utils.h"/\/\/ #include "pb_utils.h"/g'
+          # 2. COMENTAR INCLUDES NO CÓDIGO FONTE (Resolve o erro atual de pb.h)
+          # Procura todos os arquivos .c e .h e comenta os includes do nanopb
+          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <pb.h>/\/\/ #include <pb.h>/g' || true
+          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <pb_encode.h>/\/\/ #include <pb_encode.h>/g' || true
+          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <pb_decode.h>/\/\/ #include <pb_decode.h>/g' || true
+          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include <takion.pb.h>/\/\/ #include <takion.pb.h>/g' || true
+          find lib/src -name "*.c" -o -name "*.h" | xargs sed -i 's/#include "pb_utils.h"/\/\/ #include "pb_utils.h"/g' || true
 
-          # 3. Limpeza no CMake da LIB
+          # 3. LIMPEZA NA LIB (Evita erros de linkagem)
           if [ -f lib/CMakeLists.txt ]; then
             sed -i 's/add_subdirectory(protobuf)/# /g' lib/CMakeLists.txt
             sed -i 's/add_dependencies(chiaki-lib chiaki-pb)/# /g' lib/CMakeLists.txt
@@ -57,7 +58,7 @@ jobs:
             sed -i '94s/^/#/' lib/CMakeLists.txt
           fi
 
-          # 4. Ajustes gerais e correções de sintaxe
+          # 4. Ajustes gerais de compatibilidade e sintaxe
           sed -i 's/find_package(PythonInterp/#/g' CMakeLists.txt
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
@@ -77,6 +78,7 @@ jobs:
       - name: Build
         run: |
           cd build
+          # O build deve ignorar os arquivos comentados agora
           cmake --build . --parallel $(nproc)
 
       - name: Prepare Package
