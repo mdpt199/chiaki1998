@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (No Protobuf)
+name: Build Chiaki Ghost Zen (No Protobuf Edition)
 
 on:
   push:
@@ -35,16 +35,19 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Patch Code (Remove Protobuf Dependencies)
+      - name: Kill Protobuf & Patch Code
         run: |
-          # 1. Resolve o erro de versão do CMake
+          # 1. Resolve o erro de versão mínima do CMake
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
-          
-          # 2. Desativa o nanopb/protobuf no CMake principal
+
+          # 2. REMOVE COMPLETAMENTE O NANOPB/PROTOBUF DO BUILD
+          # Remove a linha que adiciona a subpasta do nanopb
           sed -i '/add_subdirectory(third-party\/nanopb)/d' CMakeLists.txt
+          # Remove a dependência de link do nanopb
+          sed -i 's/protobuf-nanopb-static//g' CMakeLists.txt
           sed -i 's/nanopb//g' CMakeLists.txt
           
-          # 3. Correções de sintaxe MinGW
+          # 3. Correções de sintaxe para o MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -53,7 +56,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Desativamos explicitamente qualquer menção a protocolos que usem protobuf
+          # Forçamos o CMake a ignorar os testes e ferramentas que pedem protobuf
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                 -DCHIAKI_ENABLE_TESTS=OFF \
@@ -66,16 +69,22 @@ jobs:
 
       - name: Prepare Package
         run: |
+          # Configura o ambiente para o deploy das DLLs
           ln -s /mingw64/bin/qmake-qt5.exe /mingw64/bin/qmake.exe || true
           export PATH="/mingw64/bin:$PATH"
+          
           cd build
           mkdir release_package
           cp gui/chiaki.exe release_package/
+          
+          # Deploy das dependências do Qt (Modo Ghost)
           /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime release_package/chiaki.exe || true
+          
+          # Cópia MASSIVA de DLLs para garantir que rode em qualquer Windows
           cp /mingw64/bin/*.dll release_package/ || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-No-Protobuf-Edition
+          name: Chiaki-Ghost-Zen-NoProto
           path: build/release_package/
