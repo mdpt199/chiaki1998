@@ -1,38 +1,82 @@
-- name: Setup MSYS2
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        update: true
-        install: >-
-          git
-          base-devel
-          mingw-w64-x86_64-toolchain
-          mingw-w64-x86_64-cmake
-          mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-qt5
-          mingw-w64-x86_64-ffmpeg
-          mingw-w64-x86_64-openssl
-          mingw-w64-x86_64-SDL2
-          mingw-w64-x86_64-protobuf
-          mingw-w64-x86_64-python-protobuf
-          mingw-w64-x86_64-opus
-          mingw-w64-x86_64-hidapi
-          mingw-w64-x86_64-python-setuptools
-          mingw-w64-x86_64-python-pip
+name: Build Chiaki Ghost Zen Edition
 
-    - name: Fix Protobuf Version (Solve MakeClass Error)
-      run: |
-        # Força uma versão do protobuf compatível com o gerador do nanopb
-        python3 -m pip install --upgrade "protobuf<4.0.0" "setuptools<81"
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
 
-    - name: Patch Code for Windows & Zen Features
-      run: |
-        # 1. Ajuste de compatibilidade do CMake
-        sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' CMakeLists.txt
-        sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' third-party/nanopb/CMakeLists.txt
-        sed -i '/install(FILES.*DESTINATION.*)/d' third-party/nanopb/CMakeLists.txt
-        
-        # 2. Correções críticas de sintaxe para o compilador MinGW
-        sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
-        sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
-        sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt5
+            mingw-w64-x86_64-ffmpeg
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-protobuf
+            mingw-w64-x86_64-python-protobuf
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-hidapi
+            mingw-w64-x86_64-python-setuptools
+            mingw-w64-x86_64-python-pip
+
+      - name: Fix Protobuf Version (Solve MakeClass Error)
+        run: |
+          python3 -m pip install --upgrade "protobuf<4.0.0" "setuptools<81"
+
+      - name: Patch Code for Windows & Zen Features
+        run: |
+          sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' CMakeLists.txt
+          sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' third-party/nanopb/CMakeLists.txt
+          sed -i '/install(FILES.*DESTINATION.*)/d' third-party/nanopb/CMakeLists.txt
+          sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
+          sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
+          sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHIAKI_ENABLE_TESTS=OFF -DCHIAKI_ENABLE_CLI=OFF ..
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --parallel $(nproc)
+
+      - name: Prepare Package
+        run: |
+          ln -s /mingw64/bin/qmake-qt5.exe /mingw64/bin/qmake.exe || true
+          export PATH="/mingw64/bin:$PATH"
+          cd build
+          mkdir release_package
+          cp gui/chiaki.exe release_package/
+          /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime --no-opengl --no-angle release_package/chiaki.exe || true
+          cp /mingw64/bin/*.dll release_package/ || true
+
+      - name: Upload Chiaki Ghost Zen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chiaki-Ghost-Zen-Edition
+          path: build/release_package/
