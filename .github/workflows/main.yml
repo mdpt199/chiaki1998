@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (Jerasure Fix)
+name: Build Chiaki Ghost Zen (Remoção Total Protobuf)
 
 on:
   push:
@@ -35,29 +35,27 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Surgical Patch (Kill Proto, Keep Jerasure)
+      - name: Nuclear Patch (Anular Protobuf e Nanopb)
         run: |
-          # 1. Esvazia o arquivo problemático do protobuf para ele não travar o build
+          # 1. ANULAÇÃO TOTAL: Esvazia os arquivos que dão erro de 'protoc'
+          echo "" > third-party/nanopb/CMakeLists.txt
           echo "" > lib/protobuf/CMakeLists.txt
           
-          # 2. Mantemos a third-party ativa, mas comentamos APENAS o nanopb lá dentro
-          if [ -f third-party/CMakeLists.txt ]; then
-            sed -i 's/add_subdirectory(nanopb)/# add_subdirectory(nanopb)/g' third-party/CMakeLists.txt
-          fi
-
-          # 3. Limpeza profunda na LIB (Resolve o erro da linha 140 e 109)
+          # 2. LIMPEZA NO CMAKE PRINCIPAL
+          # Remove a busca por Python que o Nanopb exigia
+          sed -i 's/find_package(PythonInterp/#/g' CMakeLists.txt
+          
+          # 3. LIMPEZA NA LIB (Resolve erros de linkagem futura)
           if [ -f lib/CMakeLists.txt ]; then
-            sed -i 's/add_subdirectory(protobuf)/# add_subdirectory(protobuf)/g' lib/CMakeLists.txt
+            sed -i 's/add_subdirectory(protobuf)/#/g' lib/CMakeLists.txt
             sed -i 's/add_dependencies(chiaki-lib chiaki-pb)/#/g' lib/CMakeLists.txt
             sed -i 's/chiaki-pb//g' lib/CMakeLists.txt
             sed -i 's/Nanopb::nanopb//g' lib/CMakeLists.txt
             sed -i '94s/^/#/' lib/CMakeLists.txt
           fi
 
-          # 4. Força a versão do CMake em tudo para evitar o erro < 3.5
+          # 4. Ajuste de versão e correções MinGW
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
-          
-          # 5. Correções de sintaxe MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -66,6 +64,7 @@ jobs:
         run: |
           mkdir build
           cd build
+          # Desativamos Nanopb e Jerasure externo para usar o que está na third-party (exceto nanopb que anulamos)
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
