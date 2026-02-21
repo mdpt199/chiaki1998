@@ -1,66 +1,86 @@
-name: Build Chiaki Windows Ultra Fast
+name: Build Chiaki Ghost Zen Edition
 
-on: [push]
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      # 1. FORÇAR PYTHON 3.11 (Resolve o erro de 'distutils' e 'google')
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          update-environment-variables: true
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          git
+          base-devel
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-qt5
+          mingw-w64-x86_64-ffmpeg
+          mingw-w64-x86_64-openssl
+          mingw-w64-x86_64-SDL2
+          mingw-w64-x86_64-protobuf
+          mingw-w64-x86_64-python-protobuf
+          mingw-w64-x86_64-opus
+          mingw-w64-x86_64-hidapi
+          mingw-w64-x86_64-python-setuptools
 
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install protobuf==3.20.* setuptools
-
-      # 2. CACHE BINÁRIO (Para pular as 2 horas de compilação do Qt5/FFmpeg)
-      - name: Cache vcpkg
-        uses: actions/cache@v3
-        with:
-          path: |
-            C:/Users/runneradmin/AppData/Local/vcpkg/archives
-          key: vcpkg-release-v2-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: vcpkg-release-v2-
-
-      # 3. INSTALAR DEPENDÊNCIAS (Apenas Release para ser mais rápido)
-      - name: Install Deps
-        run: |
-          vcpkg install qt5-base qt5-svg qt5-multimedia sdl2 openssl opus ffmpeg protobuf --triplet x64-windows-release
-
-      # 4. CONFIGURAR E CONSTRUIR (Com travas de segurança e velocidade)
-      - name: Configure & Build
-        run: |
-          cmake -B build -G "Ninja" `
-            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows-release `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_POLICY_DEFAULT_CMP0057=NEW `
-            -DPython_EXECUTABLE="C:/hostedtoolcache/windows/Python/3.11.9/x64/python3.exe" `
-            -D_CRT_SECURE_NO_WARNINGS=ON `
-            -DCHIAKI_ENABLE_GUI=ON
-          
-          cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
-
-      # 5. EXPORTAR (Coleta o EXE e as DLLs necessárias)
-      - name: Export
-        run: |
-          mkdir dist
-          if (Test-Path "build/gui/chiaki.exe") { copy build/gui/chiaki.exe dist/ }
-          if (Test-Path "build/gui/Release/chiaki.exe") { copy build/gui/Release/chiaki.exe dist/ }
-          copy C:\vcpkg\installed\x64-windows-release\bin\*.dll dist/
+    - name: Patch Code for Windows & Zen Features
+      run: |
+        # 1. Ajuste de compatibilidade do CMake
+        sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' CMakeLists.txt
+        sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' third-party/nanopb/CMakeLists.txt
+        sed -i '/install(FILES.*DESTINATION.*)/d' third-party/nanopb/CMakeLists.txt
         
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Chiaki-Windows-Final
-          path: dist/
+        # 2. Correções críticas de sintaxe para o compilador MinGW
+        sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
+        sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
+        sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCHIAKI_ENABLE_TESTS=OFF -DCHIAKI_ENABLE_CLI=OFF ..
+
+    - name: Build
+      run: |
+        cd build
+        # Compilação paralela para acelerar o processo
+        cmake --build . --parallel $(nproc)
+
+    - name: Prepare Package (Gathering Zen Components)
+      run: |
+        # Link para o qmake que o deploy do Qt exige
+        ln -s /mingw64/bin/qmake-qt5.exe /mingw64/bin/qmake.exe || true
+        export PATH="/mingw64/bin:$PATH"
+        
+        cd build
+        mkdir release_package
+        cp gui/chiaki.exe release_package/
+        
+        # Deploy das dependências do Qt (Modo Ghost)
+        /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime --no-opengl --no-angle release_package/chiaki.exe || true
+        
+        # Cópia MASSIVA de DLLs para garantir compatibilidade total
+        cp /mingw64/bin/*.dll release_package/ || true
+
+    - name: Upload Chiaki Ghost Zen
+      uses: actions/upload-artifact@v4
+      with:
+        name: Chiaki-Ghost-Zen-Edition
+        path: build/release_package/
