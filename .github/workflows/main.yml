@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen Edition
+name: Build Chiaki Ghost Zen (No Protobuf)
 
 on:
   push:
@@ -32,27 +32,19 @@ jobs:
             mingw-w64-x86_64-ffmpeg
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-SDL2
-            mingw-w64-x86_64-protobuf
-            mingw-w64-x86_64-python-protobuf
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
-            mingw-w64-x86_64-python-pip
-            mingw-w64-x86_64-python-setuptools
 
-      - name: Fix Python Dependencies
+      - name: Patch Code (Remove Protobuf Dependencies)
         run: |
-          # Resolve o erro de 'runtime_version' e 'MakeClass' no Protobuf 5.x
-          python3 -m pip install --upgrade "protobuf<4.0.0" "setuptools<81" --break-system-packages || true
-
-      - name: Patch Code for Windows & Zen Features
-        run: |
-          # 1. Corrige o erro 'Compatibility with CMake < 3.5' em todas as subpastas
+          # 1. Resolve o erro de versão do CMake
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           
-          # 2. Remove instaladores do nanopb que causam conflito no MSYS2
-          sed -i '/install(FILES.*DESTINATION.*)/d' third-party/nanopb/CMakeLists.txt
+          # 2. Desativa o nanopb/protobuf no CMake principal
+          sed -i '/add_subdirectory(third-party\/nanopb)/d' CMakeLists.txt
+          sed -i 's/nanopb//g' CMakeLists.txt
           
-          # 3. Correções de sintaxe para o compilador MinGW
+          # 3. Correções de sintaxe MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -61,10 +53,11 @@ jobs:
         run: |
           mkdir build
           cd build
-          # CHIAKI_ENABLE_TESTS=OFF evita o erro no munit.c
+          # Desativamos explicitamente qualquer menção a protocolos que usem protobuf
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-                -DCHIAKI_ENABLE_TESTS=OFF -DCHIAKI_ENABLE_CLI=OFF ..
+                -DCHIAKI_ENABLE_TESTS=OFF \
+                -DCHIAKI_ENABLE_CLI=OFF ..
 
       - name: Build
         run: |
@@ -73,22 +66,16 @@ jobs:
 
       - name: Prepare Package
         run: |
-          # Configura o ambiente para o deploy do Qt
           ln -s /mingw64/bin/qmake-qt5.exe /mingw64/bin/qmake.exe || true
           export PATH="/mingw64/bin:$PATH"
-          
           cd build
           mkdir release_package
           cp gui/chiaki.exe release_package/
-          
-          # Copia dependências do Qt (Modo Ghost)
           /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime release_package/chiaki.exe || true
-          
-          # Cópia de DLLs do sistema para rodar em qualquer PC
           cp /mingw64/bin/*.dll release_package/ || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Ghost-Zen-Edition
+          name: Chiaki-No-Protobuf-Edition
           path: build/release_package/
