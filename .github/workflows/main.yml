@@ -35,12 +35,18 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Patch Code for MinGW
+      - name: Nuclear Patch (Deletar Requisitos de Protobuf)
         run: |
-          # 1. Resolve o erro de versão do CMake em todos os arquivos
+          # 1. Comenta a linha que obriga a achar o Python (Linha 71)
+          sed -i 's/find_package(PythonInterp 3 REQUIRED)/# find_package(PythonInterp 3 REQUIRED)/g' CMakeLists.txt
+          
+          # 2. Comenta a entrada na pasta third-party que causa o erro do protoc
+          sed -i 's/add_subdirectory(third-party)/# add_subdirectory(third-party)/g' CMakeLists.txt
+          
+          # 3. Força a versão do CMake em todos os arquivos para evitar erro < 3.5
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           
-          # 2. Correções de sintaxe essenciais para MinGW
+          # 4. Correções de sintaxe MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -49,14 +55,12 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Em vez de deletar linhas, desativamos as opções que chamam o Protobuf
+          # Agora o CMake vai ignorar o que comentamos e focar no resto
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
                 -DCHIAKI_USE_SYSTEM_NANOPB=OFF \
-                -DCHIAKI_USE_SYSTEM_JERASURE=OFF \
-                -DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=ON \
-                -DCMAKE_DISABLE_FIND_PACKAGE_PythonLibs=ON ..
+                -DCHIAKI_USE_SYSTEM_JERASURE=OFF ..
 
       - name: Build
         run: |
