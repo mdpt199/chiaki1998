@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen (Final Deep Patch)
+name: Build Chiaki Ghost Zen (Linker Fix)
 
 on:
   push:
@@ -35,26 +35,26 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
-      - name: Deep Patch (Fix Empty String Error)
+      - name: Nuclear Linker Patch
         run: |
-          # 1. Limpeza do CMake principal
+          # 1. Comenta as entradas do Nanopb/Protobuf no CMake principal
           sed -i 's/find_package(PythonInterp 3 REQUIRED)/# find_package(PythonInterp 3 REQUIRED)/g' CMakeLists.txt
           sed -i 's/add_subdirectory(third-party)/# add_subdirectory(third-party)/g' CMakeLists.txt
           
-          # 2. Corrigir lib/CMakeLists.txt (Resolve o erro da linha 94)
+          # 2. LIMPEZA TOTAL NA LIB (Resolve o erro atual)
           if [ -f lib/CMakeLists.txt ]; then
-            # Comenta a subpasta protobuf
-            sed -i 's/add_subdirectory(protobuf)/# add_subdirectory(protobuf)/g' lib/CMakeLists.txt
-            # Remove referências de link
-            sed -i 's/chiaki-protobuf//g' lib/CMakeLists.txt
-            # COMENTA A LINHA QUE CAUSA O ERRO DE STRING VAZIA
+            # Comenta a linha 109 (add_dependencies chiaki-pb)
+            sed -i 's/add_dependencies(chiaki-lib chiaki-pb)/# add_dependencies(chiaki-lib chiaki-pb)/g' lib/CMakeLists.txt
+            # Remove o link para Nanopb (Linha 139)
+            sed -i 's/Nanopb::nanopb//g' lib/CMakeLists.txt
+            # Remove menções a chiaki-pb
+            sed -i 's/chiaki-pb//g' lib/CMakeLists.txt
+            # Remove a linha de include vazia (Linha 94)
             sed -i '94s/^/#/' lib/CMakeLists.txt
           fi
 
-          # 3. Forçar versão do CMake para compatibilidade
+          # 3. Ajustes de versão e MinGW
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
-          
-          # 4. Correções de sintaxe MinGW
           sed -i 's/WSAGetLastError;/WSAGetLastError();/g' lib/src/ctrl.c
           sed -i 's/&sockerr,/(char*)\&sockerr,/g' lib/src/stoppipe.c
           sed -i '/avcodec_close(decoder->codec_context);/d' lib/src/ffmpegdecoder.c
@@ -87,5 +87,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Ghost-Zen-Final
+          name: Chiaki-NoProto-Final
           path: build/release_package/
