@@ -91,7 +91,7 @@ set(CHIAKI_LIB_ENABLE_PI_DECODER "${CHIAKI_ENABLE_PI_DECODER}")
 add_subdirectory(protobuf)
 set_source_files_properties(${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES} PROPERTIES GENERATED TRUE)
 
-# Correção aplicada aqui: Verifica se a variável não está vazia antes de incluir
+# Correção 1: Proteção contra variável de include vazia do Protobuf
 if(CHIAKI_LIB_PROTO_INCLUDE_DIR)
     include_directories("${CHIAKI_LIB_PROTO_INCLUDE_DIR}")
 endif()
@@ -140,6 +140,9 @@ else()
 endif()
 
 target_link_libraries(chiaki-lib Nanopb::nanopb)
+
+# Correção 2: Busca pelo pacote Jerasure antes de tentar vinculá-lo
+find_package(Jerasure REQUIRED)
 target_link_libraries(chiaki-lib Jerasure::Jerasure)
 
 if(CHIAKI_ENABLE_FFMPEG_DECODER)
