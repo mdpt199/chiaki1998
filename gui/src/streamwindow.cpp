@@ -4,36 +4,25 @@
 #include <streamsession.h>
 #include <loginpindialog.h>
 #include <settings.h>
-
-#include <QLabel>
-#include <QMessageBox>
 #include <QCoreApplication>
-#include <QAction>
-#include <QVBoxLayout>
-#include <QKeyEvent>
-#include <QMouseEvent>
 
 StreamWindow::StreamWindow(const StreamSessionConnectInfo &connect_info, QWidget *parent)
 	: QMainWindow(parent),
 	connect_info(connect_info)
 {
+	// Torna a janela um processo de fundo (sem ícone na barra de tarefas e sem bordas)
+	setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint);
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowTitle(qApp->applicationName() + " | Controller (No AV)");
-		
+	
 	session = nullptr;
-	av_widget = nullptr; // Mantido para compatibilidade com o .h
+	av_widget = nullptr; 
 
 	try {
 		Init();
 	}
 	catch(const Exception &e) {
-		QMessageBox::critical(this, tr("Init failed"), e.what());
 		close();
 	}
-}
-
-StreamWindow::~StreamWindow() {
-    // av_widget é nulo, então delete é seguro
 }
 
 void StreamWindow::Init()
@@ -43,28 +32,14 @@ void StreamWindow::Init()
 	connect(session, &StreamSession::SessionQuit, this, &StreamWindow::SessionQuit);
 	connect(session, &StreamSession::LoginPINRequested, this, &StreamWindow::LoginPINRequested);
 
-	QWidget *central_widget = new QWidget(this);
-	central_widget->setStyleSheet("background-color: black;");
-	auto layout = new QVBoxLayout(central_widget);
-	auto label = new QLabel("Remote Control Mode (No Video)", central_widget);
-	label->setStyleSheet("color: white;");
-	label->setAlignment(Qt::AlignCenter);
-	layout->addWidget(label);
-	setCentralWidget(central_widget);
-
-	grabKeyboard();
+	// Inicia a sessão de rede (essencial para o Ghost Zen)
 	session->Start();
 
-	resize(640, 480);
-	show();
+	// Garante que nenhuma janela seja exibida
+	hide(); 
 }
 
-// Reimplementação das funções para satisfazer o Linker (satisfaz o streamwindow.h)
-
-void StreamWindow::ToggleFullscreen() { 
-    // Vazio ou logica simples
-    if(isFullScreen()) showNormal(); else showFullScreen();
-}
+StreamWindow::~StreamWindow() {}
 
 void StreamWindow::keyPressEvent(QKeyEvent *event) {
 	if(session) session->HandleKeyboardEvent(event);
@@ -74,37 +49,7 @@ void StreamWindow::keyReleaseEvent(QKeyEvent *event) {
 	if(session) session->HandleKeyboardEvent(event);
 }
 
-void StreamWindow::mousePressEvent(QMouseEvent *event) {
-	if(session) session->HandleMouseEvent(event);
-}
-
-void StreamWindow::mouseReleaseEvent(QMouseEvent *event) {
-	if(session) session->HandleMouseEvent(event);
-}
-
-void StreamWindow::mouseDoubleClickEvent(QMouseEvent *event) {
-	ToggleFullscreen();
-	QMainWindow::mouseDoubleClickEvent(event);
-}
-
-void StreamWindow::resizeEvent(QResizeEvent *event) {
-	QMainWindow::resizeEvent(event);
-}
-
-void StreamWindow::moveEvent(QMoveEvent *event) {
-	QMainWindow::moveEvent(event);
-}
-
-void StreamWindow::changeEvent(QEvent *event) {
-	QMainWindow::changeEvent(event);
-}
-
-void StreamWindow::UpdateVideoTransform() {
-    // Vazio
-}
-
-void StreamWindow::closeEvent(QCloseEvent *event)
-{
+void StreamWindow::closeEvent(QCloseEvent *event) {
 	if(session) {
 		if(session->IsConnected() && connect_info.settings->GetDisconnectAction() == DisconnectAction::AlwaysSleep)
 			session->GoToBed();
@@ -116,15 +61,7 @@ void StreamWindow::SessionQuit(ChiakiQuitReason reason, const QString &reason_st
 	close();
 }
 
-void StreamWindow::LoginPINRequested(bool incorrect) {
-	auto dialog = new LoginPINDialog(incorrect, this);
-	dialog->setAttribute(Qt::WA_DeleteOnClose);
-	connect(dialog, &QDialog::finished, this, [this, dialog](int result) {
-		grabKeyboard();
-		if(!session) return;
-		if(result == QDialog::Accepted) session->SetLoginPIN(dialog->GetPIN());
-		else session->Stop();
-	});
-	releaseKeyboard();
-	dialog->show();
-}
+// Stubs para funções obrigatórias do Header
+void StreamWindow::ToggleFullscreen() {}
+void StreamWindow::UpdateVideoTransform() {}
+void StreamWindow::LoginPINRequested(bool incorrect) { if(session) session->Stop(); }
