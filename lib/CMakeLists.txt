@@ -91,7 +91,6 @@ set(CHIAKI_LIB_ENABLE_PI_DECODER "${CHIAKI_ENABLE_PI_DECODER}")
 add_subdirectory(protobuf)
 set_source_files_properties(${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES} PROPERTIES GENERATED TRUE)
 
-# Correção 1: Proteção contra variável de include vazia do Protobuf
 if(CHIAKI_LIB_PROTO_INCLUDE_DIR)
     include_directories("${CHIAKI_LIB_PROTO_INCLUDE_DIR}")
 endif()
@@ -100,6 +99,14 @@ if(CHIAKI_LIB_ENABLE_OPUS)
 	find_package(Opus REQUIRED)
 	include_directories(${Opus_INCLUDE_DIRS})
 endif()
+
+# --- CORREÇÃO JERASURE ---
+# Em vez de find_package, usamos o código interno da pasta third-party
+if(NOT TARGET Jerasure::Jerasure)
+    add_subdirectory(third-party/jerasure EXCLUDE_FROM_ALL)
+endif()
+include_directories(third-party/jerasure/include)
+# -------------------------
 
 add_library(chiaki-lib ${HEADER_FILES} ${SOURCE_FILES} ${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES})
 configure_file(config.h.in include/chiaki/config.h)
@@ -125,7 +132,6 @@ if(CHIAKI_LIB_ENABLE_MBEDTLS)
 	if(CHIAKI_LIB_MBEDTLS_EXTERNAL_PROJECT)
 		target_link_libraries(chiaki-lib mbedtls mbedx509 mbedcrypto)
 	else()
-		# provided by mbedtls-static (mbedtls-devel)
 		find_library(MBEDTLS mbedtls)
 		find_library(MBEDX509 mbedx509)
 		find_library(MBEDCRYPTO mbedcrypto)
@@ -134,15 +140,13 @@ if(CHIAKI_LIB_ENABLE_MBEDTLS)
 elseif(CHIAKI_LIB_OPENSSL_EXTERNAL_PROJECT)
 	target_link_libraries(chiaki-lib OpenSSL_Crypto)
 else()
-	# default
 	find_package(OpenSSL REQUIRED)
 	target_link_libraries(chiaki-lib OpenSSL::Crypto)
 endif()
 
 target_link_libraries(chiaki-lib Nanopb::nanopb)
 
-# Correção 2: Busca pelo pacote Jerasure antes de tentar vinculá-lo
-find_package(Jerasure REQUIRED)
+# Vincula a biblioteca Jerasure interna
 target_link_libraries(chiaki-lib Jerasure::Jerasure)
 
 if(CHIAKI_ENABLE_FFMPEG_DECODER)
