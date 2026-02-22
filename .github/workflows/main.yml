@@ -26,19 +26,19 @@ jobs:
             git base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja mingw-w64-x86_64-qt5 mingw-w64-x86_64-openssl
             mingw-w64-x86_64-SDL2 mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf
-            mingw-w64-x86_64-python-protobuf mingw-w64-x86_64-python-setuptools
+            mingw-w64-x86_64-python-pip mingw-w64-x86_64-python-setuptools
 
-      - name: Surgical Patch & Sync
+      - name: Surgical Patch & Dependency Fix
         run: |
-          # 1. Corrige versão do CMake
+          # 1. DOWNGRADE DO PROTOBUF (Resolve o erro do Nanopb generator)
+          # A versão 5.0 removeu o 'MakeClass'. Usamos a 4.25.1 para compatibilidade.
+          python3 -m pip install "protobuf<5.0" --break-system-packages
+          
+          # 2. Corrige versão do CMake para evitar erros de compatibilidade
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           
-          # 2. BYPASS NA TRAVA DA GUI (Permite compilar sem vídeo)
+          # 3. BYPASS NA TRAVA DA GUI (Permite compilar sem vídeo/FFmpeg)
           sed -i 's/message(FATAL_ERROR "Chiaki GUI requires CHIAKI_ENABLE_FFMPEG_DECODER=ON")/# Trava Ignorada/g' gui/CMakeLists.txt
-          
-          # 3. FIX NANOPB GENERATOR (Resolve o erro de importação relativa)
-          # Isso garante que o gerador encontre as bibliotecas dele mesmo no Python 3.14
-          touch third-party/nanopb/generator/proto/__init__.py
 
       - name: Configure CMake
         run: |
@@ -67,5 +67,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Ghost-Zen-Elite-Final
+          name: Chiaki-Ghost-Zen-Elite-v4.6
           path: build/release_package/
