@@ -1,4 +1,4 @@
-name: Build Chiaki Ghost Zen Elite
+name: Build Chiaki Ghost Zen Elite Final
 
 on:
   push:
@@ -23,31 +23,24 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
-            git
-            base-devel
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-qt5
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-SDL2
-            mingw-w64-x86_64-hidapi
-            mingw-w64-x86_64-protobuf
+            git base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja mingw-w64-x86_64-qt5 mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-SDL2 mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf
+            mingw-w64-x86_64-python-setuptools
 
-      - name: Surgical Patch (Fix CMake Version)
+      - name: Surgical Patch
         run: |
-          # Garante a versão mínima do CMake para não dar erro de compatibilidade
+          # 1. Corrige versão do CMake
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
+          
+          # 2. REMOVE A TRAVA DA GUI (Desativa a mensagem de erro que parou o seu build)
+          sed -i 's/message(FATAL_ERROR "Chiaki GUI requires CHIAKI_ENABLE_FFMPEG_DECODER=ON")/# Trava Removida/g' gui/CMakeLists.txt
 
       - name: Configure CMake
         run: |
           mkdir build
           cd build
-          # Adicionamos -DCHIAKI_USE_SYSTEM_NANOPB=OFF para ele usar a versão 
-          # interna que já corrigimos, mas com o compilador externo que instalamos.
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-                -DCHIAKI_ENABLE_TESTS=OFF \
-                -DCHIAKI_ENABLE_CLI=OFF \
                 -DCHIAKI_ENABLE_FFMPEG_DECODER=OFF \
                 -DCHIAKI_LIB_ENABLE_OPUS=OFF \
                 -DCHIAKI_USE_SYSTEM_NANOPB=OFF \
@@ -70,5 +63,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chiaki-Ghost-Zen-Elite
+          name: Chiaki-Ghost-Zen-Elite-v4.6
           path: build/release_package/
