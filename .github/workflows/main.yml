@@ -26,14 +26,18 @@ jobs:
             git base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja mingw-w64-x86_64-qt5 mingw-w64-x86_64-openssl
             mingw-w64-x86_64-SDL2 mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf
-            mingw-w64-x86_64-python-setuptools mingw-w64-x86_64-python-protobuf
+            mingw-w64-x86_64-python-pip
 
-      - name: Surgical Patch
+      - name: Surgical Patch & Dependency Fix
         run: |
-          # 1. Corrige versão do CMake para evitar erros de compatibilidade
+          # 1. FORÇAR VERSÃO COMPATÍVEL DO PROTOBUF (Resolve o erro do Nanopb)
+          # Instalamos a versão 4.25.1 que possui o 'MakeClass' necessário
+          python3 -m pip install "protobuf<5" --break-system-packages
+          
+          # 2. Corrige versão do CMake em todos os arquivos
           find . -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION .*/cmake_minimum_required(VERSION 3.10)/' {} +
           
-          # 2. BYPASS NA TRAVA DA GUI: Remove o erro fatal por falta de FFmpeg
+          # 3. BYPASS NA TRAVA DA GUI (Permite compilar sem FFmpeg)
           sed -i 's/message(FATAL_ERROR "Chiaki GUI requires CHIAKI_ENABLE_FFMPEG_DECODER=ON")/# Trava Ignorada/g' gui/CMakeLists.txt
 
       - name: Configure CMake
@@ -57,6 +61,7 @@ jobs:
           cd build
           mkdir release_package
           cp gui/chiaki.exe release_package/
+          # Windeployqt prepara as DLLs necessárias para o Windows
           /mingw64/bin/windeployqt-qt5 --release --no-translations --no-compiler-runtime release_package/chiaki.exe
           cp /mingw64/bin/*.dll release_package/
 
