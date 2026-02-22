@@ -1,4 +1,4 @@
-# Define a versão mínima para evitar o erro "Compatibility with CMake < 3.5"
+# Define a versão mínima para evitar erros de compatibilidade
 cmake_minimum_required(VERSION 3.10)
 
 # --- LISTA DE ARQUIVOS DE CABEÇALHO (Headers) ---
@@ -83,7 +83,7 @@ set(SOURCE_FILES
     src/orientation.c
 )
 
-# --- CONFIGURAÇÕES DE DECODIFICADORES (VÍDEO/ÁUDIO) ---
+# --- CONFIGURAÇÕES DE DECODIFICADORES ---
 if(CHIAKI_ENABLE_FFMPEG_DECODER)
     list(APPEND HEADER_FILES include/chiaki/ffmpegdecoder.h)
     list(APPEND SOURCE_FILES src/ffmpegdecoder.c)
@@ -98,34 +98,33 @@ endif()
 add_subdirectory(protobuf)
 set_source_files_properties(${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES} PROPERTIES GENERATED TRUE)
 
+# --- CRIAÇÃO DA BIBLIOTECA ---
+add_library(chiaki-lib ${HEADER_FILES} ${SOURCE_FILES} ${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES})
+configure_file(config.h.in include/chiaki/config.h)
+
+# --- DIRETÓRIOS DE INCLUSÃO (Moderno: target_include_directories) ---
+target_include_directories(chiaki-lib PUBLIC 
+    "${CMAKE_CURRENT_BINARY_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
 if(CHIAKI_LIB_PROTO_INCLUDE_DIR)
-    include_directories("${CHIAKI_LIB_PROTO_INCLUDE_DIR}")
+    target_include_directories(chiaki-lib PRIVATE "${CHIAKI_LIB_PROTO_INCLUDE_DIR}")
 endif()
 
 # --- OPUS (ÁUDIO) ---
 if(CHIAKI_LIB_ENABLE_OPUS)
     find_package(Opus REQUIRED)
-    include_directories(${Opus_INCLUDE_DIRS})
+    target_include_directories(chiaki-lib PRIVATE ${Opus_INCLUDE_DIRS})
 endif()
 
 # --- JERASURE (CORREÇÃO DE ERROS) ---
-# Usa a versão interna se não for encontrada no sistema
 if(NOT TARGET Jerasure::Jerasure)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third-party/jerasure/CMakeLists.txt")
         add_subdirectory(third-party/jerasure EXCLUDE_FROM_ALL)
-        include_directories(third-party/jerasure/include)
+        target_include_directories(chiaki-lib PRIVATE third-party/jerasure/include)
     endif()
 endif()
-
-# --- CRIAÇÃO DA BIBLIOTECA ---
-add_library(chiaki-lib ${HEADER_FILES} ${SOURCE_FILES} ${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES})
-configure_file(config.h.in include/chiaki/config.h)
-
-# Configurações de diretórios de inclusão (Públicos e Privados)
-target_include_directories(chiaki-lib PUBLIC 
-    "${CMAKE_CURRENT_BINARY_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
 
 # --- OPÇÕES DE COMPILADOR ---
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
@@ -135,14 +134,13 @@ endif()
 add_dependencies(chiaki-lib chiaki-pb)
 set_target_properties(chiaki-lib PROPERTIES OUTPUT_NAME chiaki)
 
-# --- LINKAGEM DE BIBLIOTECAS (DEPENDÊNCIAS) ---
+# --- LINKAGEM DE BIBLIOTECAS (Padrão Keyword: PUBLIC) ---
 find_package(Threads REQUIRED)
 
-target_link_libraries(chiaki-lib 
-    PUBLIC 
-        Threads::Threads
-        Nanopb::nanopb
-        Jerasure::Jerasure
+target_link_libraries(chiaki-lib PUBLIC 
+    Threads::Threads
+    Nanopb::nanopb
+    Jerasure::Jerasure
 )
 
 # Dependências específicas do Windows
@@ -153,23 +151,23 @@ endif()
 # SSL (OpenSSL ou mbedTLS)
 if(CHIAKI_LIB_ENABLE_MBEDTLS)
     if(CHIAKI_LIB_MBEDTLS_EXTERNAL_PROJECT)
-        target_link_libraries(chiaki-lib mbedtls mbedx509 mbedcrypto)
+        target_link_libraries(chiaki-lib PUBLIC mbedtls mbedx509 mbedcrypto)
     else()
         find_library(MBEDTLS mbedtls)
         find_library(MBEDX509 mbedx509)
         find_library(MBEDCRYPTO mbedcrypto)
-        target_link_libraries(chiaki-lib ${MBEDTLS} ${MBEDX509} ${MBEDCRYPTO})
+        target_link_libraries(chiaki-lib PUBLIC ${MBEDTLS} ${MBEDX509} ${MBEDCRYPTO})
     endif()
 else()
     find_package(OpenSSL REQUIRED)
-    target_link_libraries(chiaki-lib OpenSSL::Crypto)
+    target_link_libraries(chiaki-lib PUBLIC OpenSSL::Crypto)
 endif()
 
-# Linkagem condicional de Áudio e Vídeo
+# Linkagem condicional
 if(CHIAKI_ENABLE_FFMPEG_DECODER)
-    target_link_libraries(chiaki-lib FFMPEG::avcodec FFMPEG::avutil)
+    target_link_libraries(chiaki-lib PUBLIC FFMPEG::avcodec FFMPEG::avutil)
 endif()
 
 if(CHIAKI_LIB_ENABLE_OPUS)
-    target_link_libraries(chiaki-lib ${Opus_LIBRARIES})
+    target_link_libraries(chiaki-lib PUBLIC ${Opus_LIBRARIES})
 endif()
