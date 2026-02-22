@@ -1,4 +1,3 @@
-
 set(HEADER_FILES
 		include/chiaki/session.h
 		include/chiaki/common.h
@@ -91,7 +90,11 @@ set(CHIAKI_LIB_ENABLE_PI_DECODER "${CHIAKI_ENABLE_PI_DECODER}")
 
 add_subdirectory(protobuf)
 set_source_files_properties(${CHIAKI_LIB_PROTO_SOURCE_FILES} ${CHIAKI_LIB_PROTO_HEADER_FILES} PROPERTIES GENERATED TRUE)
-include_directories("${CHIAKI_LIB_PROTO_INCLUDE_DIR}")
+
+# Correção aplicada aqui: Verifica se a variável não está vazia antes de incluir
+if(CHIAKI_LIB_PROTO_INCLUDE_DIR)
+    include_directories("${CHIAKI_LIB_PROTO_INCLUDE_DIR}")
+endif()
 
 if(CHIAKI_LIB_ENABLE_OPUS)
 	find_package(Opus REQUIRED)
