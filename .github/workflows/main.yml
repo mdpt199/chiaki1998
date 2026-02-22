@@ -29,10 +29,8 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-qt5
-            mingw-w64-x86_64-ffmpeg
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-SDL2
-            mingw-w64-x86_64-opus
             mingw-w64-x86_64-hidapi
 
       - name: Surgical Patch (Remove PB Files from Build)
@@ -67,7 +65,9 @@ jobs:
                 -DCHIAKI_ENABLE_TESTS=OFF \
                 -DCHIAKI_ENABLE_CLI=OFF \
                 -DCHIAKI_USE_SYSTEM_NANOPB=OFF \
-                -DCHIAKI_USE_SYSTEM_JERASURE=OFF ..
+                -DCHIAKI_USE_SYSTEM_JERASURE=OFF \
+                -DCHIAKI_ENABLE_FFMPEG_DECODER=OFF \
+                -DCHIAKI_LIB_ENABLE_OPUS=OFF ..
 
       - name: Build
         run: |
